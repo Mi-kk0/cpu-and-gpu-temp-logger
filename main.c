@@ -223,7 +223,7 @@ int main(int argc, char** argv)
     }
 
     printf("Finished using path : %s\n", path);
-    printf("Do you want to generate graphical raport [Y/n]\n");
+    printf("Do you want to generate graphical report [y/N]\n");
     int choice = getchar();
 
     if (choice != 'Y' && choice != 'y')
