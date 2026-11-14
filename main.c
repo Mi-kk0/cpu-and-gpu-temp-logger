@@ -1,4 +1,5 @@
 #include <dirent.h>
+#include <errno.h>
 #include <limits.h>
 #include <signal.h>
 #include <stdbool.h>
@@ -7,6 +8,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/wait.h>
 #define MAX_LOG_NAME_LENGTH 32
 #define DEFAULT_LOG_FILE "log.csv"
 #define DEFAULT_SLEEP_TIME 10
@@ -123,6 +125,47 @@ void sigint_handler(int signum)
     (void)signum; // silence warnings
     keep_running = 0;
 }
+
+int run_python(const char* log_filename)
+{
+    pid_t pid = fork();
+    if (pid < 0)
+    {
+        perror("fork failed");
+        return -1;
+    }
+
+    if (pid == 0)
+    {
+        char *const argv[] = {"python", "main.py", (char *) log_filename, NULL};
+        execvp(argv[0], argv);
+        perror("execvp failed");
+        _exit(127);
+    }
+
+
+    int status;
+    while (waitpid(pid, &status, 0) < 0)
+    {
+        if (errno != EINTR)
+        {
+            perror("waitpid failed");
+            return -1;
+        }
+    }
+
+    if (WIFEXITED(status))
+    {
+        return WEXITSTATUS(status);
+    }
+    if (WIFSIGNALED(status))
+    {
+        return -1;
+    }
+
+    return -1;
+}
+
 int main(int argc, char** argv)
 {
     signal(SIGINT, sigint_handler);
@@ -233,12 +276,11 @@ int main(int argc, char** argv)
 
     char cmd[256];
 
-    snprintf(cmd, sizeof(cmd), "python main.py %s", log_filename);
 
-    int ret = system(cmd);
+    int ret = run_python(log_filename);
     if (ret != 0)
     {
-        fprintf(stderr, "Error executing command : %s\n", cmd);
+        fprintf(stderr, "Error generating report for '%s' (code %d)\n", log_filename, ret);
     }
     else
     {
